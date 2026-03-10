@@ -30,7 +30,8 @@ docs/
   ├── troubleshooting.md  # トラブルシューティング
   ├── channel-setup.md    # チャンネル接続（Discord/Slack/Telegram）
   ├── tailscale-setup.md  # Tailscale設定
-  └── second-mac.md       # 二台目Mac導入ガイド
+  ├── second-mac.md       # 二台目Mac導入ガイド
+  └── memory-lancedb-pro.md # 記憶プラグイン導入ガイド
 .env.example              # ホスト名などの設定テンプレート
 ```
 
