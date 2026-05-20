@@ -36,7 +36,7 @@ HOSTNAME=$(scutil --get ComputerName 2>/dev/null || hostname)
 pass "ホスト名: $HOSTNAME"
 
 # スリープ設定
-for key in displaysleep sleep disksleep; do
+for key in displaysleep sleep; do
   val=$(pmset -g 2>/dev/null | grep -w "$key" | awk '{print $2}')
   if [ "$val" = "0" ]; then
     pass "$key = 0 (無効)"
@@ -45,12 +45,39 @@ for key in displaysleep sleep disksleep; do
   fi
 done
 
+# standby/autopoweroff/hibernatemode (全て0であるべき)
+for key in standby autopoweroff hibernatemode; do
+  val=$(pmset -g 2>/dev/null | grep -w "$key" | awk '{print $2}')
+  if [ "$val" = "0" ]; then
+    pass "$key = 0 (無効)"
+  else
+    fail "$key = ${val:-unknown} (0 であるべき — NWスタック破損の原因になる)"
+  fi
+done
+
+# ネットワーク安定化設定
+for key in tcpkeepalive ttyskeepawake; do
+  val=$(pmset -g 2>/dev/null | grep -w "$key" | awk '{print $2}')
+  if [ "$val" = "1" ]; then
+    pass "$key = 1 (有効)"
+  else
+    warn "$key = ${val:-unknown} (1 推奨)"
+  fi
+done
+
+netover=$(pmset -g 2>/dev/null | grep -w "networkoversleep" | awk '{print $2}')
+if [ "$netover" = "0" ]; then
+  pass "networkoversleep = 0 (無効)"
+else
+  warn "networkoversleep = ${netover:-unknown} (0 推奨)"
+fi
+
 # クラムシェル
 clamshell=$(pmset -g 2>/dev/null | grep -i "lidwake" | awk '{print $2}')
-if [ "$clamshell" = "1" ]; then
-  pass "lidwake = 1 (クラムシェル対応)"
+if [ "$clamshell" = "0" ]; then
+  pass "lidwake = 0 (クラムシェル対応: 蓋開でwakeしない)"
 else
-  warn "lidwake = ${clamshell:-unknown}"
+  warn "lidwake = ${clamshell:-unknown} (0 推奨)"
 fi
 
 # 自動再起動
@@ -182,6 +209,15 @@ if ssh -o ConnectTimeout=3 -o BatchMode=yes localhost true 2>/dev/null; then
   pass "SSH localhost 接続OK"
 else
   warn "SSH localhost 接続不可（鍵設定が必要かも）"
+fi
+
+# caffeinate稼働確認
+if pgrep -f "caffeinate -dimsu" &>/dev/null; then
+  pass "caffeinate -dimsu 稼働中"
+elif pgrep -f "caffeinate" &>/dev/null; then
+  warn "caffeinate 稼働中だが -dimsu フラグ推奨"
+else
+  fail "caffeinate 未稼働 (スリープ防止のバックアップがない)"
 fi
 
 # ============================================
