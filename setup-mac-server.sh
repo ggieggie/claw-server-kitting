@@ -63,17 +63,28 @@ scutil --set ComputerName $SERVER_HOSTNAME
 log "ホスト名を $SERVER_HOSTNAME に設定"
 
 # ============================================
-# 2. スリープ無効化
+# 2. スリープ無効化 & 電源管理
 # ============================================
 echo ""
-echo "--- 2. スリープ無効化 ---"
+echo "--- 2. スリープ無効化 & 電源管理 ---"
+# コアスリープ無効化
 pmset -a sleep 0
 pmset -a disablesleep 1
 pmset -a displaysleep 0
 pmset -a hibernatemode 0
 pmset -a standby 0
 pmset -a autopoweroff 0
-log "スリープ完全無効化"
+
+# ネットワーク安定化 (standby/DarkWake復帰時のNWスタック破損防止)
+pmset -a networkoversleep 0
+pmset -a tcpkeepalive 1
+pmset -a ttyskeepawake 1
+pmset -a womp 1
+
+# 不要なウェイク抑制
+pmset -a proximitywake 0
+
+log "スリープ完全無効化 + ネットワーク安定化"
 
 # ============================================
 # 3. クラムシェル設定
@@ -82,7 +93,21 @@ echo ""
 echo "--- 3. クラムシェル設定 ---"
 pmset -a lidwake 0
 pmset -a acwake 0
+
+# クラムシェル時にディスプレイセッションを維持
+# (画面共有接続時に画面が真っ暗にならないようにする)
+defaults write /Library/Preferences/com.apple.loginwindow DesktopPicture ""
+sudo -u "$ACTUAL_USER" defaults -currentHost write com.apple.screensaver idleTime 0
+
+# パスワード要求無効化 (リモート接続時に画面ロックを防止)
+sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPassword -int 0
+sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPasswordDelay -int 0
+
+# ディスプレイのオフを防止（クラムシェルでも仮想ディスプレイを維持）
+# ※ 画面共有(VNC/ARD)が接続中はmacOSが仮想フレームバッファを保持する
+# ※ 物理ディスプレイなしで確実に動かすにはHDMIダミープラグ推奨
 log "クラムシェルモード設定完了"
+warn "画面共有なしの長時間クラムシェルにはHDMIダミープラグを推奨"
 
 # ============================================
 # 4. 自動再起動（フリーズ/停電後）
@@ -127,9 +152,8 @@ log "ターミナルPro / マウス最速 / Dock縮小 設定完了"
 
 echo ""
 echo "--- 6. スクリーンセーバー無効化 ---"
-sudo -u "$ACTUAL_USER" defaults -currentHost write com.apple.screensaver idleTime 0
-sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPassword 0
-log "スクリーンセーバー無効化"
+# セクション3で設定済みのため、確認のみ
+log "スクリーンセーバー無効化 (セクション3で設定済み)"
 
 # ============================================
 # 7. SSH有効化
@@ -400,7 +424,7 @@ cat > "$PLIST" << 'CAFFEOF'
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/caffeinate</string>
-        <string>-dims</string>
+        <string>-dimsu</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -410,7 +434,7 @@ cat > "$PLIST" << 'CAFFEOF'
 </plist>
 CAFFEOF
 launchctl load "$PLIST" 2>/dev/null || true
-log "caffeinate ログイン時自動起動を設定"
+log "caffeinate -dimsu ログイン時自動起動を設定"
 
 USEREOF
 
