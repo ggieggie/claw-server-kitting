@@ -99,13 +99,6 @@ for cmd in brew node npm git jq; do
   fi
 done
 
-# nodenv
-if command -v nodenv &>/dev/null; then
-  pass "nodenv ($(nodenv --version 2>/dev/null))"
-else
-  fail "nodenv が見つかりません"
-fi
-
 # pm2
 if command -v pm2 &>/dev/null; then
   pass "pm2 ($(pm2 --version 2>/dev/null))"

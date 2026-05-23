@@ -216,8 +216,8 @@ warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 # Homebrew PATHを確保
 if [ -f /opt/homebrew/bin/brew ]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -f /usr/local/bin/brew ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
+else
+  warn "Apple Silicon Homebrew (/opt/homebrew/bin/brew) が見つかりません"
 fi
 
 # --- 15. Homebrew ---
@@ -243,7 +243,7 @@ echo ""
 echo "--- 16. 開発ツールインストール ---"
 
 # CLIツール（formula）
-BREW_FORMULAS=(node git jq wget htop nodenv)
+BREW_FORMULAS=(node git jq wget htop)
 echo "Homebrew formula..."
 for pkg in "${BREW_FORMULAS[@]}"; do
   if brew list "$pkg" &>/dev/null; then
@@ -267,47 +267,27 @@ done
 
 log "開発ツールインストール完了"
 
-# --- 17. nodenv セットアップ ---
+# --- 17. Node.js ---
 echo ""
-echo "--- 17. nodenv ---"
-if command -v nodenv &>/dev/null; then
-  # nodenv init を .zshrc に追加
-  if ! grep -q 'nodenv init' ~/.zshrc 2>/dev/null; then
-    echo 'eval "$(nodenv init -)"' >> ~/.zshrc
-  fi
-  # 最新LTSをインストール
-  LATEST_LTS=$(nodenv install -l 2>/dev/null | grep -E '^\s*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d ' ')
-  if [ -n "$LATEST_LTS" ]; then
-    if nodenv versions --bare | grep -q "$LATEST_LTS"; then
-      echo "  Node $LATEST_LTS: 済"
-    else
-      nodenv install "$LATEST_LTS"
-      echo "  Node $LATEST_LTS: ✅"
-    fi
-    nodenv global "$LATEST_LTS"
-    log "nodenv セットアップ完了 (Node $LATEST_LTS)"
-  else
-    warn "Node LTSバージョンの取得に失敗。手動で nodenv install を実行してください"
-  fi
+echo "--- 17. Node.js ---"
+if command -v node &>/dev/null; then
+  log "Node.js $(node -v) ($(command -v node))"
 else
-  warn "nodenv が見つかりません"
+  warn "Node.js が見つかりません。brew install node を実行してください"
 fi
 
 # --- 18. pm2 ---
 echo ""
 echo "--- 18. pm2 ---"
-# nodenv の shims を有効化
-eval "$(nodenv init -)" 2>/dev/null || true
 if command -v npm &>/dev/null; then
   if command -v pm2 &>/dev/null; then
     log "pm2 既にインストール済み"
   else
     npm install -g pm2
-    nodenv rehash 2>/dev/null || true
     log "pm2 インストール完了"
   fi
 else
-  warn "npm が見つかりません。nodenv で Node をインストール後に npm install -g pm2 を実行してください"
+  warn "npm が見つかりません。brew install node 後に npm install -g pm2 を実行してください"
 fi
 
 # --- 19. GitHub SSH鍵生成 ---
@@ -338,12 +318,6 @@ touch "$ZSHRC"
 if ! grep -q 'brew shellenv' "$ZSHRC" 2>/dev/null; then
   echo '# Homebrew' >> "$ZSHRC"
   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "$ZSHRC"
-fi
-
-# nodenv
-if ! grep -q 'nodenv init' "$ZSHRC" 2>/dev/null; then
-  echo '# nodenv' >> "$ZSHRC"
-  echo 'eval "$(nodenv init -)"' >> "$ZSHRC"
 fi
 
 # エイリアス
