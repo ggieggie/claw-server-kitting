@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # OpenClaw 導入スクリプト
-# 前提: setup-mac-server.sh 実行済み（nodenv, Node.js インストール済み）
+# 前提: setup-mac-server.sh 実行済み（Apple Silicon Homebrew Node.js インストール済み）
 # 使い方: bash setup-openclaw.sh
 #
 set -e
@@ -25,28 +25,15 @@ echo ""
 # ============================================
 echo "--- 1. 前提チェック ---"
 
-# nodenv
-if command -v nodenv &>/dev/null; then
-  eval "$(nodenv init -)"
-  log "nodenv OK"
-else
-  err "nodenv が見つかりません。先に setup-mac-server.sh を実行してください"
-  exit 1
-fi
-
 # Node.js
 if command -v node &>/dev/null; then
   NODE_VER=$(node -v)
-  log "Node.js $NODE_VER"
+  log "Node.js $NODE_VER ($(command -v node))"
   # Node 22+ チェック
   MAJOR=$(echo "$NODE_VER" | sed 's/v//' | cut -d. -f1)
   if [ "$MAJOR" -lt 22 ]; then
-    warn "Node 22+ が必要です。最新版をインストールします..."
-    LATEST=$(nodenv install -l | grep -E '^\s*22\.' | tail -1 | tr -d ' ')
-    nodenv install "$LATEST"
-    nodenv global "$LATEST"
-    eval "$(nodenv init -)"
-    log "Node $LATEST インストール完了"
+    warn "Node 22+ が必要です。brew upgrade node を実行してください"
+    exit 1
   fi
 else
   err "Node.js が見つかりません"
@@ -74,13 +61,11 @@ if command -v openclaw &>/dev/null; then
   read -r UPDATE
   if [ "$UPDATE" = "y" ] || [ "$UPDATE" = "Y" ]; then
     npm install -g openclaw@latest
-    nodenv rehash
     log "OpenClaw 更新完了"
   fi
 else
   echo "OpenClaw をインストール中..."
   npm install -g openclaw@latest
-  nodenv rehash
   log "OpenClaw インストール完了 ($(openclaw --version 2>/dev/null))"
 fi
 

@@ -63,28 +63,17 @@ scutil --set ComputerName $SERVER_HOSTNAME
 log "ホスト名を $SERVER_HOSTNAME に設定"
 
 # ============================================
-# 2. スリープ無効化 & 電源管理
+# 2. スリープ無効化
 # ============================================
 echo ""
-echo "--- 2. スリープ無効化 & 電源管理 ---"
-# コアスリープ無効化
+echo "--- 2. スリープ無効化 ---"
 pmset -a sleep 0
 pmset -a disablesleep 1
 pmset -a displaysleep 0
 pmset -a hibernatemode 0
 pmset -a standby 0
 pmset -a autopoweroff 0
-
-# ネットワーク安定化 (standby/DarkWake復帰時のNWスタック破損防止)
-pmset -a networkoversleep 0
-pmset -a tcpkeepalive 1
-pmset -a ttyskeepawake 1
-pmset -a womp 1
-
-# 不要なウェイク抑制
-pmset -a proximitywake 0
-
-log "スリープ完全無効化 + ネットワーク安定化"
+log "スリープ完全無効化"
 
 # ============================================
 # 3. クラムシェル設定
@@ -93,21 +82,7 @@ echo ""
 echo "--- 3. クラムシェル設定 ---"
 pmset -a lidwake 0
 pmset -a acwake 0
-
-# クラムシェル時にディスプレイセッションを維持
-# (画面共有接続時に画面が真っ暗にならないようにする)
-defaults write /Library/Preferences/com.apple.loginwindow DesktopPicture ""
-sudo -u "$ACTUAL_USER" defaults -currentHost write com.apple.screensaver idleTime 0
-
-# パスワード要求無効化 (リモート接続時に画面ロックを防止)
-sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPassword -int 0
-sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPasswordDelay -int 0
-
-# ディスプレイのオフを防止（クラムシェルでも仮想ディスプレイを維持）
-# ※ 画面共有(VNC/ARD)が接続中はmacOSが仮想フレームバッファを保持する
-# ※ 物理ディスプレイなしで確実に動かすにはHDMIダミープラグ推奨
 log "クラムシェルモード設定完了"
-warn "画面共有なしの長時間クラムシェルにはHDMIダミープラグを推奨"
 
 # ============================================
 # 4. 自動再起動（フリーズ/停電後）
@@ -152,8 +127,9 @@ log "ターミナルPro / マウス最速 / Dock縮小 設定完了"
 
 echo ""
 echo "--- 6. スクリーンセーバー無効化 ---"
-# セクション3で設定済みのため、確認のみ
-log "スクリーンセーバー無効化 (セクション3で設定済み)"
+sudo -u "$ACTUAL_USER" defaults -currentHost write com.apple.screensaver idleTime 0
+sudo -u "$ACTUAL_USER" defaults write com.apple.screensaver askForPassword 0
+log "スクリーンセーバー無効化"
 
 # ============================================
 # 7. SSH有効化
@@ -240,8 +216,8 @@ warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 # Homebrew PATHを確保
 if [ -f /opt/homebrew/bin/brew ]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -f /usr/local/bin/brew ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
+else
+  warn "Apple Silicon Homebrew (/opt/homebrew/bin/brew) が見つかりません"
 fi
 
 # --- 15. Homebrew ---
@@ -267,7 +243,7 @@ echo ""
 echo "--- 16. 開発ツールインストール ---"
 
 # CLIツール（formula）
-BREW_FORMULAS=(node git jq wget htop nodenv)
+BREW_FORMULAS=(node git jq wget htop)
 echo "Homebrew formula..."
 for pkg in "${BREW_FORMULAS[@]}"; do
   if brew list "$pkg" &>/dev/null; then
@@ -291,47 +267,27 @@ done
 
 log "開発ツールインストール完了"
 
-# --- 17. nodenv セットアップ ---
+# --- 17. Node.js ---
 echo ""
-echo "--- 17. nodenv ---"
-if command -v nodenv &>/dev/null; then
-  # nodenv init を .zshrc に追加
-  if ! grep -q 'nodenv init' ~/.zshrc 2>/dev/null; then
-    echo 'eval "$(nodenv init -)"' >> ~/.zshrc
-  fi
-  # 最新LTSをインストール
-  LATEST_LTS=$(nodenv install -l 2>/dev/null | grep -E '^\s*[0-9]+\.[0-9]+\.[0-9]+$' | tail -1 | tr -d ' ')
-  if [ -n "$LATEST_LTS" ]; then
-    if nodenv versions --bare | grep -q "$LATEST_LTS"; then
-      echo "  Node $LATEST_LTS: 済"
-    else
-      nodenv install "$LATEST_LTS"
-      echo "  Node $LATEST_LTS: ✅"
-    fi
-    nodenv global "$LATEST_LTS"
-    log "nodenv セットアップ完了 (Node $LATEST_LTS)"
-  else
-    warn "Node LTSバージョンの取得に失敗。手動で nodenv install を実行してください"
-  fi
+echo "--- 17. Node.js ---"
+if command -v node &>/dev/null; then
+  log "Node.js $(node -v) ($(command -v node))"
 else
-  warn "nodenv が見つかりません"
+  warn "Node.js が見つかりません。brew install node を実行してください"
 fi
 
 # --- 18. pm2 ---
 echo ""
 echo "--- 18. pm2 ---"
-# nodenv の shims を有効化
-eval "$(nodenv init -)" 2>/dev/null || true
 if command -v npm &>/dev/null; then
   if command -v pm2 &>/dev/null; then
     log "pm2 既にインストール済み"
   else
     npm install -g pm2
-    nodenv rehash 2>/dev/null || true
     log "pm2 インストール完了"
   fi
 else
-  warn "npm が見つかりません。nodenv で Node をインストール後に npm install -g pm2 を実行してください"
+  warn "npm が見つかりません。brew install node 後に npm install -g pm2 を実行してください"
 fi
 
 # --- 19. GitHub SSH鍵生成 ---
@@ -362,12 +318,6 @@ touch "$ZSHRC"
 if ! grep -q 'brew shellenv' "$ZSHRC" 2>/dev/null; then
   echo '# Homebrew' >> "$ZSHRC"
   echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "$ZSHRC"
-fi
-
-# nodenv
-if ! grep -q 'nodenv init' "$ZSHRC" 2>/dev/null; then
-  echo '# nodenv' >> "$ZSHRC"
-  echo 'eval "$(nodenv init -)"' >> "$ZSHRC"
 fi
 
 # エイリアス
@@ -424,7 +374,7 @@ cat > "$PLIST" << 'CAFFEOF'
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/caffeinate</string>
-        <string>-dimsu</string>
+        <string>-dims</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -434,7 +384,7 @@ cat > "$PLIST" << 'CAFFEOF'
 </plist>
 CAFFEOF
 launchctl load "$PLIST" 2>/dev/null || true
-log "caffeinate -dimsu ログイン時自動起動を設定"
+log "caffeinate ログイン時自動起動を設定"
 
 USEREOF
 
